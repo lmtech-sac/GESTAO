@@ -1,81 +1,66 @@
-# Deploy da LM TECH CRM no Render
+# LM TECH CRM — Deploy no Render
 
-O projeto está preparado para o **Render Blueprint**, criando o Web Service e o PostgreSQL e ligando os dois automaticamente.
+Este pacote foi ajustado para Render + PostgreSQL.
 
-## 1. Suba estes arquivos para um repositório GitHub
+## Opção A — Blueprint (recomendada)
 
-O arquivo `render.yaml` precisa ficar na **raiz do repositório**, no mesmo nível de `app.py`, `requirements.txt` e `start.sh`.
-
-## 2. Crie pelo Blueprint
-
-No Render:
-
-1. `New` → `Blueprint`.
-2. Conecte o repositório.
-3. O Render detectará `render.yaml`.
-4. Ele criará:
-   - `lm-tech-crm` — Web Service Python.
-   - `lm-tech-crm-db` — PostgreSQL.
-5. Antes/finalizando o Blueprint, preencha as variáveis marcadas como secretas:
+1. Extraia o ZIP.
+2. Envie **os arquivos da raiz do ZIP** para a raiz do repositório GitHub.
+3. No Render: **New > Blueprint**.
+4. Conecte o repositório.
+5. O Render lê `render.yaml` e cria/usa:
+   - Web Service `lm-tech-crm`
+   - PostgreSQL `lm-tech-crm-db`
+6. Preencha as variáveis solicitadas:
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
-   - `ALLOWED_GOOGLE_EMAILS`
+   - `ALLOWED_GOOGLE_EMAILS` (ex.: `email1@gmail.com,email2@gmail.com`)
+7. Acompanhe o log. A sequência saudável é:
+   - `[LM TECH] Inicializando/verificando PostgreSQL...`
+   - `[LM TECH] PostgreSQL disponível...`
+   - `[LM TECH] Tabelas verificadas e seed concluído.`
+   - `[LM TECH] Banco pronto. Iniciando Gunicorn...`
 
-`DATABASE_URL` **não precisa ser copiada manualmente** quando você usa o Blueprint: ela vem do PostgreSQL criado pelo próprio `render.yaml`.
+O startup tenta conectar ao banco por até ~80 segundos antes de encerrar com um erro claro.
 
-## 3. Google OAuth
+## Se o Render disser que você já tem 1 Postgres Free
 
-Depois que o Web Service existir, copie a URL pública do Render, por exemplo:
+O Render permite apenas um banco PostgreSQL Free ativo por workspace. Se o banco do deploy anterior (`lm-tech-crm-db`) já existir, **não crie outro**.
 
-`https://lm-tech-crm.onrender.com`
+Você pode:
 
-No Google Cloud Console, no OAuth Client do tipo **Web application**, adicione em **Authorized redirect URIs**:
+- manter o `render.yaml` normal se o Blueprint reconhecer `lm-tech-crm-db`; ou
+- usar `render-web-only.yaml` como `render.yaml` e preencher manualmente `DATABASE_URL` com a **Internal Database URL** do Postgres existente.
+
+## Google Login
+
+Quando o serviço estiver online, adicione no Google Cloud:
 
 `https://SEU-SERVICO.onrender.com/auth/google/callback`
 
-Se depois você usar domínio próprio, adicione também:
+O app usa `RENDER_EXTERNAL_URL`, então gera o callback HTTPS automaticamente.
 
-`https://SEU-DOMINIO/auth/google/callback`
+## Teste de saúde
 
-Você **não precisa** criar `PUBLIC_BASE_URL` no Render. O backend usa automaticamente a variável oficial `RENDER_EXTERNAL_URL` para montar o callback HTTPS. Se um dia quiser forçar um domínio próprio, você pode criar `PUBLIC_BASE_URL=https://seu-dominio.com` manualmente nas variáveis do serviço.
+- `/healthz` — liveness do Web Service (200 quando o Flask/Gunicorn está vivo)
+- `/api/health` — testa também a conexão com o PostgreSQL
 
-### Formato dos dois usuários permitidos
+## Banco
 
-Em `ALLOWED_GOOGLE_EMAILS`:
+Em Render, o CRM exige `DATABASE_URL`. Ele não faz fallback silencioso para SQLite em produção.
 
-`email1@gmail.com,email2@gmail.com`
+As tabelas são criadas automaticamente no startup. O seed dos leads só roda se a tabela `leads` estiver vazia.
 
-Sem espaços é o formato mais simples.
+## Comandos usados pelo Render
 
-## 4. Inicialização automática
+Build:
 
-O `start.sh` executa `python init_db.py` antes do Gunicorn. Esse processo:
+`python -m pip install --upgrade pip && python -m pip install -r requirements.txt`
 
-- cria as tabelas caso ainda não existam;
-- importa os leads iniciais apenas quando a tabela de leads está vazia;
-- não apaga metas, reuniões, contratos, usuários ou alterações existentes.
+Start:
 
-Depois inicia:
+`bash ./start.sh`
 
-`gunicorn app:app`
+## Se ainda aparecer "exited with status 1"
 
-na porta fornecida pelo Render.
-
-## 5. Health check
-
-O Render consulta:
-
-`/api/health`
-
-O endpoint testa também uma consulta real ao banco. Se o PostgreSQL estiver indisponível, retorna HTTP 503 em vez de dizer falsamente que o sistema está saudável.
-
-## Atenção ao plano gratuito
-
-O Web Service Free pode adormecer após período sem tráfego. O PostgreSQL Free do Render atualmente expira depois de 30 dias. Para usar este CRM como sistema permanente da empresa, faça upgrade do **banco PostgreSQL** antes do vencimento ou use outro PostgreSQL persistente e coloque sua URL em `DATABASE_URL`.
-
-Não use SQLite no Web Service Free para dados reais: o filesystem do serviço é efêmero e o arquivo pode desaparecer em restart, spin-down ou novo deploy.
-
-
-## Blueprint de produção opcional
-
-O arquivo `render-production.yaml` é uma alternativa para uso permanente com Web Service Starter e PostgreSQL Basic. Ele pode gerar cobrança. Para usá-lo, crie o Blueprint escolhendo esse arquivo como **Blueprint Path**. O `render.yaml` padrão continua configurado para os planos gratuitos.
+Copie o bloco do log a partir de `[LM TECH]`. O novo startup mostra o erro real do banco/driver em vez de encerrar sem contexto.

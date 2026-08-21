@@ -18,26 +18,34 @@ APP_TZ = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Sao_Paulo"))
 
 def _database_uri():
     url = os.getenv("DATABASE_URL", "").strip()
-    # Render entrega connectionString como postgresql://. O projeto usa psycopg 3,
-    # então declaramos explicitamente o driver do SQLAlchemy.
+    # SQLAlchemy + psycopg2 entende postgresql:// diretamente.
+    # Compatibilidade com URLs antigas que ainda usam postgres://.
     if url.startswith("postgres://"):
-        url = "postgresql+psycopg://" + url[len("postgres://"):]
-    elif url.startswith("postgresql://"):
-        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+        url = "postgresql://" + url[len("postgres://"):]
+    if os.getenv("RENDER") == "true" and not url:
+        raise RuntimeError(
+            "DATABASE_URL não foi configurada no Render. "
+            "Conecte o Web Service ao Render Postgres antes de iniciar o CRM."
+        )
     return url or f"sqlite:///{BASE_DIR / 'lmtech.db'}"
 
 app = Flask(__name__)
 # Render fica atrás de proxy HTTPS. ProxyFix faz o Flask respeitar Host/Proto encaminhados.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+DATABASE_URI = _database_uri()
+ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
+if DATABASE_URI.startswith("postgresql://"):
+    ENGINE_OPTIONS["connect_args"] = {"connect_timeout": 10}
+
 app.config.update(
     SECRET_KEY=os.getenv("SECRET_KEY") or secrets.token_hex(32),
-    SQLALCHEMY_DATABASE_URI=_database_uri(),
+    SQLALCHEMY_DATABASE_URI=DATABASE_URI,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE", "0") == "1",
     PREFERRED_URL_SCHEME="https" if os.getenv("RENDER") == "true" else "http",
-    SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
+    SQLALCHEMY_ENGINE_OPTIONS=ENGINE_OPTIONS,
 )
 
 db = SQLAlchemy(app)
@@ -714,6 +722,12 @@ def activities():
     q=Activity.query
     if user_id:q=q.filter_by(user_id=user_id)
     return jsonify([a.to_dict() for a in q.order_by(Activity.created_at.desc()).limit(limit).all()])
+
+
+@app.get("/healthz")
+def healthz():
+    # Liveness simples para o Render. A conexão com o banco já é validada no startup.
+    return jsonify({"ok": True, "service": "LM TECH CRM"})
 
 
 @app.get("/api/health")

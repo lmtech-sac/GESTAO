@@ -1,3 +1,5 @@
+# Use este arquivo somente se você JÁ possui um PostgreSQL no Render e não pode criar outro Free DB.
+# Renomeie para render.yaml e preencha DATABASE_URL no painel do Web Service.
 services:
   - type: web
     name: lm-tech-crm
@@ -21,25 +23,15 @@ services:
         value: "1"
       - key: GUNICORN_THREADS
         value: "4"
-      - key: GUNICORN_TIMEOUT
-        value: "120"
       - key: DB_STARTUP_ATTEMPTS
         value: "40"
       - key: DB_STARTUP_DELAY
         value: "2"
       - key: DATABASE_URL
-        fromDatabase:
-          name: lm-tech-crm-db
-          property: connectionString
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: ALLOWED_GOOGLE_EMAILS
         sync: false
-
-databases:
-  - name: lm-tech-crm-db
-    plan: free
-    databaseName: lmtechcrm
-    user: lmtechcrm

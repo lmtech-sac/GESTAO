@@ -1,57 +1,30 @@
-# LM TECH CRM — Advocacia
+# LM TECH CRM
 
-CRM comercial com backend Flask, banco compartilhado, Google OAuth, metas, contratos, reuniões por lead e auditoria por usuário.
+CRM comercial para gestão de leads jurídicos, reuniões, contratos, metas e desempenho por usuário.
 
-## Deploy recomendado: Render
+## Stack
 
-O projeto já vem pronto para Render com:
+- Flask
+- Flask-SQLAlchemy
+- PostgreSQL no Render
+- Gunicorn
+- Google OAuth
 
-- `render.yaml` na raiz;
-- Web Service Python + Gunicorn;
-- PostgreSQL conectado automaticamente pelo Blueprint;
-- `/api/health` verificando aplicação e banco;
-- inicialização idempotente do banco em `init_db.py`;
-- callback Google OAuth compatível com HTTPS/proxy do Render;
-- timezone `America/Sao_Paulo`;
-- acesso restrito aos e-mails em `ALLOWED_GOOGLE_EMAILS`.
+## Recursos
 
-Leia **`RENDER-DEPLOY.md`** para o passo a passo.
+- Base compartilhada de leads
+- Reuniões vinculadas aos leads
+- Contratos vinculados aos leads
+- Contrato fechado soma automaticamente no realizado da meta mensal
+- Metas de faturamento, contratos e reuniões
+- Metas por equipe e por usuário
+- Histórico de atividades
+- Controle de desempenho dos usuários
+- Login Google limitado pelos e-mails permitidos
+- Seed automático dos leads existentes
 
-## Rodar localmente
+## Render
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-export DEV_BYPASS_AUTH=1
-python init_db.py
-python app.py
-```
+Use `render.yaml`. Veja `RENDER-DEPLOY.md`.
 
-Abra `http://localhost:5000/login`.
-
-## Variáveis importantes
-
-```text
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-ALLOWED_GOOGLE_EMAILS=email1@gmail.com,email2@gmail.com
-DATABASE_URL=postgresql://...
-SECRET_KEY=...
-COOKIE_SECURE=1
-APP_TIMEZONE=America/Sao_Paulo
-```
-
-No Render via Blueprint, `DATABASE_URL` e `SECRET_KEY` são configuradas automaticamente. Você preenche apenas as credenciais Google e os e-mails autorizados.
-
-## Funcionalidades
-
-- leads compartilhados entre os dois usuários;
-- reuniões vinculadas a leads e responsáveis;
-- contratos vinculados a lead/usuário;
-- contratos `Fechado` contabilizados automaticamente na meta mensal;
-- metas de receita, contratos e reuniões da equipe e individuais;
-- desempenho detalhado por usuário;
-- histórico/auditoria das ações;
-- importação em lote e exportação CSV/JSON;
-- seed dos leads iniciais sem sobrescrever a base existente.
+O startup espera o PostgreSQL ficar disponível antes de iniciar o Gunicorn, evitando falha por corrida entre criação do banco e inicialização do Web Service.
