@@ -10,18 +10,25 @@ from pathlib import Path
 from authlib.integrations.flask_client import OAuth
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE_DIR = Path(__file__).resolve().parent
 APP_TZ = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Sao_Paulo"))
 
 def _database_uri():
     url = os.getenv("DATABASE_URL", "").strip()
+    # Render entrega connectionString como postgresql://. O projeto usa psycopg 3,
+    # então declaramos explicitamente o driver do SQLAlchemy.
     if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
+        url = "postgresql+psycopg://" + url[len("postgres://"):]
+    elif url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
     return url or f"sqlite:///{BASE_DIR / 'lmtech.db'}"
 
 app = Flask(__name__)
+# Render fica atrás de proxy HTTPS. ProxyFix faz o Flask respeitar Host/Proto encaminhados.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config.update(
     SECRET_KEY=os.getenv("SECRET_KEY") or secrets.token_hex(32),
     SQLALCHEMY_DATABASE_URI=_database_uri(),
@@ -29,6 +36,8 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE", "0") == "1",
+    PREFERRED_URL_SCHEME="https" if os.getenv("RENDER") == "true" else "http",
+    SQLALCHEMY_ENGINE_OPTIONS={"pool_pre_ping": True},
 )
 
 db = SQLAlchemy(app)
@@ -311,9 +320,22 @@ def seed_initial_data():
     db.session.commit()
 
 
-with app.app_context():
-    db.create_all()
-    seed_initial_data()
+def initialize_database():
+    """Cria as tabelas e popula a base inicial de forma idempotente."""
+    with app.app_context():
+        db.create_all()
+        seed_initial_data()
+
+
+def public_origin():
+    """Origem pública usada pelo OAuth, priorizando a URL HTTPS do Render."""
+    configured = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if configured:
+        return configured
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+    if render_url:
+        return render_url
+    return request.url_root.rstrip("/")
 
 
 @app.get("/login")
@@ -331,7 +353,7 @@ def login():
 def google_login():
     if not (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET):
         return redirect(url_for("login", error="google_not_configured"))
-    redirect_uri = url_for("google_callback", _external=True)
+    redirect_uri = f"{public_origin()}{url_for('google_callback')}"
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -696,7 +718,12 @@ def activities():
 
 @app.get("/api/health")
 def health():
-    return jsonify({"ok": True, "service": "LM TECH CRM"})
+    try:
+        db.session.execute(text("SELECT 1"))
+        return jsonify({"ok": True, "service": "LM TECH CRM", "database": "ok"})
+    except Exception:
+        db.session.rollback()
+        return jsonify({"ok": False, "service": "LM TECH CRM", "database": "unavailable"}), 503
 
 
 if __name__ == "__main__":

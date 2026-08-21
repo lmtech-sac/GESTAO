@@ -1,58 +1,57 @@
 # LM TECH CRM — Advocacia
 
-Backend real para o HTML do CRM da LM TECH.
+CRM comercial com backend Flask, banco compartilhado, Google OAuth, metas, contratos, reuniões por lead e auditoria por usuário.
 
-## O que já está pronto
+## Deploy recomendado: Render
 
-- Flask + SQLAlchemy.
-- SQLite local e suporte a PostgreSQL por `DATABASE_URL`.
-- Login com Google OAuth.
-- Acesso restrito aos e-mails de `ALLOWED_GOOGLE_EMAILS` (ideal para os 2 usuários).
-- Leads compartilhados no servidor.
-- Reuniões vinculadas a um lead e a um usuário.
-- Contratos vinculados a lead/usuário.
-- Contrato com status `Fechado` soma automaticamente na receita realizada do mês.
-- Metas mensais da equipe e metas individuais: receita, contratos e reuniões.
-- Controle por usuário: receita, contratos, reuniões, reuniões realizadas, ações em leads e histórico recente.
-- Log de auditoria das alterações.
-- Scripts comerciais compartilhados.
-- Importação em lote e exportação CSV/JSON no frontend.
+O projeto já vem pronto para Render com:
 
-## Rodar local
+- `render.yaml` na raiz;
+- Web Service Python + Gunicorn;
+- PostgreSQL conectado automaticamente pelo Blueprint;
+- `/api/health` verificando aplicação e banco;
+- inicialização idempotente do banco em `init_db.py`;
+- callback Google OAuth compatível com HTTPS/proxy do Render;
+- timezone `America/Sao_Paulo`;
+- acesso restrito aos e-mails em `ALLOWED_GOOGLE_EMAILS`.
+
+Leia **`RENDER-DEPLOY.md`** para o passo a passo.
+
+## Rodar localmente
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# exporte as variáveis do .env ou use seu gerenciador preferido
 export DEV_BYPASS_AUTH=1
+python init_db.py
 python app.py
 ```
 
-Abra `http://localhost:5000/login` e use o botão de acesso de desenvolvimento. O bypass só aparece se `DEV_BYPASS_AUTH=1`.
+Abra `http://localhost:5000/login`.
 
-## Google OAuth
-
-No Google Cloud Console crie um OAuth Client do tipo Web e coloque como URI de redirecionamento:
-
-- Local: `http://localhost:5000/auth/google/callback`
-- Produção: `https://SEU-DOMINIO/auth/google/callback`
-
-Depois defina:
+## Variáveis importantes
 
 ```text
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ALLOWED_GOOGLE_EMAILS=email1@gmail.com,email2@gmail.com
+DATABASE_URL=postgresql://...
+SECRET_KEY=...
+COOKIE_SECURE=1
+APP_TIMEZONE=America/Sao_Paulo
 ```
 
-Se o e-mail autenticado não estiver nessa lista, o CRM não permite entrada.
+No Render via Blueprint, `DATABASE_URL` e `SECRET_KEY` são configuradas automaticamente. Você preenche apenas as credenciais Google e os e-mails autorizados.
 
-## Banco em produção
+## Funcionalidades
 
-Para produção, prefira PostgreSQL e coloque a URL em `DATABASE_URL`. Se deixar vazio, o app usa `lmtech.db` local.
-
-## Deploy
-
-O `render.yaml` já contém build e start command. Cadastre as variáveis secretas no painel do serviço e conecte um banco PostgreSQL pela variável `DATABASE_URL`.
+- leads compartilhados entre os dois usuários;
+- reuniões vinculadas a leads e responsáveis;
+- contratos vinculados a lead/usuário;
+- contratos `Fechado` contabilizados automaticamente na meta mensal;
+- metas de receita, contratos e reuniões da equipe e individuais;
+- desempenho detalhado por usuário;
+- histórico/auditoria das ações;
+- importação em lote e exportação CSV/JSON;
+- seed dos leads iniciais sem sobrescrever a base existente.

@@ -1,8 +1,10 @@
+# Blueprint opcional para uso permanente/produção.
+# ATENÇÃO: estes planos são pagos no Render.
 services:
   - type: web
     name: lm-tech-crm
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: bash start.sh
     healthCheckPath: /api/health
@@ -31,8 +33,9 @@ services:
         sync: false
       - key: ALLOWED_GOOGLE_EMAILS
         sync: false
+
 databases:
   - name: lm-tech-crm-db
-    plan: free
+    plan: basic-256mb
     databaseName: lmtechcrm
     user: lmtechcrm
