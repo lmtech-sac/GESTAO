@@ -1,6 +1,8 @@
 import json
 import os
 import secrets
+import sys
+import time
 import uuid
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
@@ -333,6 +335,51 @@ def initialize_database():
     with app.app_context():
         db.create_all()
         seed_initial_data()
+
+
+def initialize_database_with_retry():
+    """
+    Garante que o banco esteja pronto antes de o Gunicorn aceitar tráfego.
+
+    Isso é executado no próprio import de app.py, portanto funciona mesmo quando
+    o Start Command do Render for somente `gunicorn app:app`.
+    """
+    attempts = max(1, int(os.getenv("DB_STARTUP_ATTEMPTS", "40")))
+    delay = max(0.25, float(os.getenv("DB_STARTUP_DELAY", "2")))
+    last_error = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            with app.app_context():
+                db.session.execute(text("SELECT 1"))
+                db.session.rollback()
+                db.create_all()
+                seed_initial_data()
+            print(
+                f"[LM TECH] Banco pronto e tabelas verificadas ({attempt}/{attempts}).",
+                flush=True,
+            )
+            return
+        except Exception as exc:
+            last_error = exc
+            try:
+                with app.app_context():
+                    db.session.rollback()
+                    db.engine.dispose()
+            except Exception:
+                pass
+            print(
+                f"[LM TECH] Aguardando PostgreSQL ({attempt}/{attempts}): "
+                f"{exc.__class__.__name__}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            if attempt < attempts:
+                time.sleep(delay)
+
+    raise RuntimeError(
+        f"Não foi possível inicializar o banco após {attempts} tentativa(s): {last_error}"
+    )
 
 
 def public_origin():
@@ -738,6 +785,12 @@ def health():
     except Exception:
         db.session.rollback()
         return jsonify({"ok": False, "service": "LM TECH CRM", "database": "unavailable"}), 503
+
+
+# No Render, o serviço pode ser configurado apenas como `gunicorn app:app`.
+# Inicializar aqui torna o banco independente de um script/start command separado.
+if os.getenv("AUTO_INIT_DB", "1") == "1":
+    initialize_database_with_retry()
 
 
 if __name__ == "__main__":

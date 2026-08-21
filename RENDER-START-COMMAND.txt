@@ -1,13 +1,1 @@
-START COMMAND (copie exatamente no Render):
-python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --capture-output
-
-BUILD COMMAND:
-pip install --upgrade pip && pip install -r requirements.txt
-
-HEALTH CHECK PATH:
-/healthz
-
-IMPORTANTE:
-NÃO use: gunicorn app.py
-NÃO use: gunicorn app
-USE: gunicorn app:app
+gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --capture-output

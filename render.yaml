@@ -3,8 +3,8 @@ services:
     name: lm-tech-crm
     runtime: python
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --capture-output
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python verify_dependencies.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --capture-output
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
@@ -17,6 +17,8 @@ services:
         value: "1"
       - key: DEV_BYPASS_AUTH
         value: "0"
+      - key: AUTO_INIT_DB
+        value: "1"
       - key: DB_STARTUP_ATTEMPTS
         value: "40"
       - key: DB_STARTUP_DELAY

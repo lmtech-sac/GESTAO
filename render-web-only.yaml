@@ -1,12 +1,12 @@
-# Use este arquivo somente se você JÁ possui um PostgreSQL no Render e não pode criar outro Free DB.
-# Renomeie para render.yaml e preencha DATABASE_URL no painel do Web Service.
+# Use este arquivo se o PostgreSQL já existe no Render.
+# Renomeie para render.yaml e configure DATABASE_URL no painel.
 services:
   - type: web
     name: lm-tech-crm
     runtime: python
     plan: free
-    buildCommand: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
-    startCommand: bash ./start.sh
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt && python verify_dependencies.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --capture-output
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
@@ -19,10 +19,8 @@ services:
         value: "1"
       - key: DEV_BYPASS_AUTH
         value: "0"
-      - key: WEB_CONCURRENCY
+      - key: AUTO_INIT_DB
         value: "1"
-      - key: GUNICORN_THREADS
-        value: "4"
       - key: DB_STARTUP_ATTEMPTS
         value: "40"
       - key: DB_STARTUP_DELAY

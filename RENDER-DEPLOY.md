@@ -1,66 +1,56 @@
-# LM TECH CRM — Deploy no Render
+# LM TECH CRM — Render
 
-Este pacote foi ajustado para Render + PostgreSQL.
+## Configuração do Web Service
 
-## Opção A — Blueprint (recomendada)
+**Build Command**
+```bash
+pip install --upgrade pip && pip install -r requirements.txt && python verify_dependencies.py
+```
 
-1. Extraia o ZIP.
-2. Envie **os arquivos da raiz do ZIP** para a raiz do repositório GitHub.
-3. No Render: **New > Blueprint**.
-4. Conecte o repositório.
-5. O Render lê `render.yaml` e cria/usa:
-   - Web Service `lm-tech-crm`
-   - PostgreSQL `lm-tech-crm-db`
-6. Preencha as variáveis solicitadas:
-   - `GOOGLE_CLIENT_ID`
-   - `GOOGLE_CLIENT_SECRET`
-   - `ALLOWED_GOOGLE_EMAILS` (ex.: `email1@gmail.com,email2@gmail.com`)
-7. Acompanhe o log. A sequência saudável é:
-   - `[LM TECH] Inicializando/verificando PostgreSQL...`
-   - `[LM TECH] PostgreSQL disponível...`
-   - `[LM TECH] Tabelas verificadas e seed concluído.`
-   - `[LM TECH] Banco pronto. Iniciando Gunicorn...`
+**Start Command**
+```bash
+gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --capture-output
+```
 
-O startup tenta conectar ao banco por até ~80 segundos antes de encerrar com um erro claro.
+O próprio `app.py` espera o PostgreSQL responder e executa `db.create_all()` + seed inicial.
+Não é obrigatório executar `init_db.py` no Start Command.
 
-## Se o Render disser que você já tem 1 Postgres Free
+## Environment Variables
 
-O Render permite apenas um banco PostgreSQL Free ativo por workspace. Se o banco do deploy anterior (`lm-tech-crm-db`) já existir, **não crie outro**.
+- `PYTHON_VERSION=3.12.11`
+- `DATABASE_URL=<Internal Database URL do Render Postgres>`
+- `SECRET_KEY=<chave aleatória grande>`
+- `APP_TIMEZONE=America/Sao_Paulo`
+- `COOKIE_SECURE=1`
+- `DEV_BYPASS_AUTH=0`
+- `AUTO_INIT_DB=1`
+- `DB_STARTUP_ATTEMPTS=40`
+- `DB_STARTUP_DELAY=2`
+- `GOOGLE_CLIENT_ID=<depois>`
+- `GOOGLE_CLIENT_SECRET=<depois>`
+- `ALLOWED_GOOGLE_EMAILS=email1@gmail.com,email2@gmail.com`
 
-Você pode:
+## Se aparecer `No module named requests`
+Esta versão declara `requests>=2.32,<3` explicitamente. Depois de enviar os arquivos novos, use **Clear build cache & deploy** para forçar a instalação do `requirements.txt` atualizado.
 
-- manter o `render.yaml` normal se o Blueprint reconhecer `lm-tech-crm-db`; ou
-- usar `render-web-only.yaml` como `render.yaml` e preencher manualmente `DATABASE_URL` com a **Internal Database URL** do Postgres existente.
+## Verificação
+Durante o build deve aparecer:
+```text
+[LM TECH] Python: 3.12.11
+[LM TECH] Dependências principais OK.
+```
 
-## Google Login
+Durante o start deve aparecer:
+```text
+[LM TECH] Banco pronto e tabelas verificadas (...)
+```
 
-Quando o serviço estiver online, adicione no Google Cloud:
+Depois:
+- `/healthz` => serviço vivo
+- `/api/health` => banco PostgreSQL acessível
 
-`https://SEU-SERVICO.onrender.com/auth/google/callback`
-
-O app usa `RENDER_EXTERNAL_URL`, então gera o callback HTTPS automaticamente.
-
-## Teste de saúde
-
-- `/healthz` — liveness do Web Service (200 quando o Flask/Gunicorn está vivo)
-- `/api/health` — testa também a conexão com o PostgreSQL
-
-## Banco
-
-Em Render, o CRM exige `DATABASE_URL`. Ele não faz fallback silencioso para SQLite em produção.
-
-As tabelas são criadas automaticamente no startup. O seed dos leads só roda se a tabela `leads` estiver vazia.
-
-## Comandos usados pelo Render
-
-Build:
-
-`python -m pip install --upgrade pip && python -m pip install -r requirements.txt`
-
-Start:
-
-`bash ./start.sh`
-
-## Se ainda aparecer "exited with status 1"
-
-Copie o bloco do log a partir de `[LM TECH]`. O novo startup mostra o erro real do banco/driver em vez de encerrar sem contexto.
+## Google OAuth
+Redirect URI:
+```text
+https://SEU-SERVICO.onrender.com/auth/google/callback
+```
