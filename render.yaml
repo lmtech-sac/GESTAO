@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: lm-tech-crm
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ALLOWED_GOOGLE_EMAILS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
